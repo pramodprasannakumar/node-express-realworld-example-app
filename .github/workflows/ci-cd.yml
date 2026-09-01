@@ -119,7 +119,7 @@ jobs:
   # ============================================
   # 2. BUILD DOCKER IMAGE + SCAN + PUSH
   # ============================================
-   docker:
+  docker:
     name: Build & Push Docker Image
     needs: build-test-scan
     runs-on: ubuntu-latest
