@@ -9,7 +9,7 @@ on:
     branches: [main, master]
 
 env:
-  AWS_REGION: ap-south-1
+  AWS_REGION: us-east-1
   ECR_REPOSITORY: realworld-backend
   ECS_CLUSTER: realworld-cluster
   ECS_SERVICE: realworld-backend
