@@ -9,7 +9,7 @@ on:
     branches: [main, master]
 
 env:
-  AWS_REGION: us-east-1
+  AWS_REGION: ap-south-1
   ECR_REPOSITORY: realworld-backend
   ECS_CLUSTER: realworld-cluster
   ECS_SERVICE: realworld-backend
@@ -119,15 +119,29 @@ jobs:
   # ============================================
   # 2. BUILD DOCKER IMAGE + SCAN + PUSH
   # ============================================
-  docker:
+   docker:
     name: Build & Push Docker Image
     needs: build-test-scan
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
 
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
+
+      - name: Download backend build
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-build
+          path: dist/api
+
+      - name: Verify build artifact
+        run: |
+          echo "Checking dist/api..."
+          ls -lah dist/api
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -141,13 +155,35 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build Docker image
+        id: image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ needs.build-test-scan.outputs.image_tag }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
+          echo "Building Docker image: $IMAGE_URI"
+
+          docker build -t $IMAGE_URI .
+
+          docker tag $IMAGE_URI $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+          echo "image=$IMAGE_URI" >> "$GITHUB_OUTPUT"
+
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.image.outputs.image }}
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+
+      - name: Push image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ needs.build-test-scan.outputs.image_tag }}
+        run: |
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
       # ----- Container image vulnerability scan -----
       - name: Scan Docker image with Trivy
         uses: aquasecurity/trivy-action@master
