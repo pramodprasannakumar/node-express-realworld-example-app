@@ -72,7 +72,7 @@ jobs:
 
       # ----- Install dependencies -----
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       # ----- Security scanning (npm) -----
       - name: Run npm audit (fail on critical)
